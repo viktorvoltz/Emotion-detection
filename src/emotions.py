@@ -8,6 +8,10 @@ from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+from sklearn.metrics import classification_report, confusion_matrix
+import seaborn as sns
+
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -28,7 +32,7 @@ def plot_model_history(model_history):
     axs[0].set_title('Model Accuracy')
     axs[0].set_ylabel('Accuracy')
     axs[0].set_xlabel('Epoch')
-    axs[0].set_xticks(np.arange(1,len(model_history.history['accuracy'])+1),len(model_history.history['accuracy'])/10)
+    axs[0].set_xticks(np.arange(1, len(model_history.history['accuracy']) + 1), len(model_history.history['accuracy']) // 10)
     axs[0].legend(['train', 'val'], loc='best')
     # summarize history for loss
     axs[1].plot(range(1,len(model_history.history['loss'])+1),model_history.history['loss'])
@@ -36,7 +40,7 @@ def plot_model_history(model_history):
     axs[1].set_title('Model Loss')
     axs[1].set_ylabel('Loss')
     axs[1].set_xlabel('Epoch')
-    axs[1].set_xticks(np.arange(1,len(model_history.history['loss'])+1),len(model_history.history['loss'])/10)
+    axs[1].set_xticks(np.arange(1, len(model_history.history['loss']) + 1), len(model_history.history['loss']) // 10)
     axs[1].legend(['train', 'val'], loc='best')
     fig.savefig('plot.png')
     plt.show()
@@ -86,6 +90,9 @@ model.add(Dense(1024, activation='relu'))
 model.add(Dropout(0.5))
 model.add(Dense(7, activation='softmax'))
 
+print("summary\n\n")
+model.summary()
+
 # If you want to train the same model or try other models, go for this
 if mode == "train":
     model.compile(loss='categorical_crossentropy',optimizer=Adam(lr=0.0001, decay=1e-6),metrics=['accuracy'])
@@ -95,41 +102,55 @@ if mode == "train":
             epochs=num_epoch,
             validation_data=validation_generator,
             validation_steps=num_val // batch_size)
-    plot_model_history(model_info)
-    model.save_weights('model.h5')
+    #plot_model_history(model_info)
+    #model.save_weights('model.h5')
+
+    y_true = validation_generator.classes
+    y_pred = model.predict(validation_generator)
+    y_pred_classes = np.argmax(y_pred, axis=1)
+
+    # Compute precision, recall, and F1-score
+    print("Confusion Matrix:")
+    print(confusion_matrix(y_true, y_pred_classes))
+
+    target_names = ['Angry', 'Disgusted', 'Fearful', 'Happy', 'Neutral', 'Sad', 'Surprised']
+    print("Classification Report:")
+    print(classification_report(y_true, y_pred_classes, target_names=target_names))
+
+    cm = confusion_matrix(y_true, y_pred_classes)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=target_names, yticklabels=target_names)
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title('Confusion Matrix')
+    plt.show()
 
 # emotions will be displayed on your face from the webcam feed
 elif mode == "display":
     model.load_weights('model.h5')
 
     # prevents openCL usage and unnecessary logging messages
-    cv2.ocl.setUseOpenCL(False)
+    #cv2.ocl.setUseOpenCL(False)
 
     # dictionary which assigns each label an emotion (alphabetical order)
     emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
 
     # start the webcam feed
-    cap = cv2.VideoCapture(0)
-    while True:
+    #cap = cv2.VideoCapture(0)
+    
         # Find haar cascade to draw bounding box around face
-        ret, frame = cap.read()
-        if not ret:
-            break
-        facecasc = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = facecasc.detectMultiScale(gray,scaleFactor=1.3, minNeighbors=5)
+    img = cv2.imread("../imgs/imagesd.jpeg", cv2.IMREAD_GRAYSCALE)
+    img = cv2.resize(img, (48, 48))
+    img = np.expand_dims(np.expand_dims(img, -1), 0) / 255.0
 
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y-50), (x+w, y+h+10), (255, 0, 0), 2)
-            roi_gray = gray[y:y + h, x:x + w]
-            cropped_img = np.expand_dims(np.expand_dims(cv2.resize(roi_gray, (48, 48)), -1), 0)
-            prediction = model.predict(cropped_img)
-            maxindex = int(np.argmax(prediction))
-            cv2.putText(frame, emotion_dict[maxindex], (x+20, y-60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+    # Make the prediction
+    prediction = model.predict(img)
+    maxindex = int(np.argmax(prediction))
+    emotion_label = emotion_dict[maxindex]
+    emotion = emotion_label
+    print(f"Predicted emotion: {emotion}")
+    
+            
 
-        cv2.imshow('Video', cv2.resize(frame,(1600,960),interpolation = cv2.INTER_CUBIC))
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
+    #cap.release()
+    #cv2.destroyAllWindows()
