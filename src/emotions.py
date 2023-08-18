@@ -7,7 +7,12 @@ from tensorflow.keras.layers import Dense, Dropout, Flatten
 from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import MaxPooling2D
+from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+from sklearn.metrics import classification_report, confusion_matrix
+import seaborn as sns
+
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -28,7 +33,7 @@ def plot_model_history(model_history):
     axs[0].set_title('Model Accuracy')
     axs[0].set_ylabel('Accuracy')
     axs[0].set_xlabel('Epoch')
-    axs[0].set_xticks(np.arange(1,len(model_history.history['accuracy'])+1),len(model_history.history['accuracy'])/10)
+    axs[0].set_xticks(np.arange(1, len(model_history.history['accuracy']) + 1), len(model_history.history['accuracy']) // 10)
     axs[0].legend(['train', 'val'], loc='best')
     # summarize history for loss
     axs[1].plot(range(1,len(model_history.history['loss'])+1),model_history.history['loss'])
@@ -36,7 +41,7 @@ def plot_model_history(model_history):
     axs[1].set_title('Model Loss')
     axs[1].set_ylabel('Loss')
     axs[1].set_xlabel('Epoch')
-    axs[1].set_xticks(np.arange(1,len(model_history.history['loss'])+1),len(model_history.history['loss'])/10)
+    axs[1].set_xticks(np.arange(1, len(model_history.history['loss']) + 1), len(model_history.history['loss']) // 10)
     axs[1].legend(['train', 'val'], loc='best')
     fig.savefig('plot.png')
     plt.show()
@@ -45,7 +50,7 @@ def plot_model_history(model_history):
 train_dir = 'data/train'
 val_dir = 'data/test'
 
-num_train = 28709
+num_train = 19379
 num_val = 7178
 batch_size = 64
 num_epoch = 50
@@ -81,10 +86,23 @@ model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Dropout(0.25))
 
+#model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
+#model.add(MaxPooling2D(pool_size=(2, 2)))
+#model.add(BatchNormalization())
+#model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
+#model.add(MaxPooling2D(pool_size=(2, 2)))
+#model.add(BatchNormalization())
+#model.add(Conv2D(512, kernel_size=(3, 3), activation='relu'))
+#model.add(MaxPooling2D(pool_size=(2, 2)))
+#model.add(Dropout(0.25))
+
 model.add(Flatten())
 model.add(Dense(1024, activation='relu'))
 model.add(Dropout(0.5))
 model.add(Dense(7, activation='softmax'))
+
+print("summary\n\n")
+model.summary()
 
 # If you want to train the same model or try other models, go for this
 if mode == "train":
@@ -95,8 +113,28 @@ if mode == "train":
             epochs=num_epoch,
             validation_data=validation_generator,
             validation_steps=num_val // batch_size)
-    plot_model_history(model_info)
-    model.save_weights('model.h5')
+    #plot_model_history(model_info)
+    #model.save_weights('model.h5')
+
+    y_true = validation_generator.classes
+    y_pred = model.predict(validation_generator)
+    y_pred_classes = np.argmax(y_pred, axis=1)
+
+    # Compute precision, recall, and F1-score
+    print("Confusion Matrix:")
+    print(confusion_matrix(y_true, y_pred_classes))
+
+    target_names = ['Angry', 'Disgusted', 'Fearful', 'Happy', 'Neutral', 'Sad', 'Surprised']
+    print("Classification Report:")
+    print(classification_report(y_true, y_pred_classes, target_names=target_names))
+
+    cm = confusion_matrix(y_true, y_pred_classes)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=target_names, yticklabels=target_names)
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title('Confusion Matrix')
+    plt.show()
 
 # emotions will be displayed on your face from the webcam feed
 elif mode == "display":
